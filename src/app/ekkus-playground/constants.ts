@@ -23,7 +23,8 @@ export const GENRES = [
     { "name": "Suspense and Thriller", "value": "suspense_and_thriller" },
     { "name": "Travel Literature", "value": "travel_literature" },
     { "name": "Western", "value": "western" },
-    { "name": "Young Adult", "value": "young_adult" }
+    { "name": "Young Adult", "value": "young_adult" },
+    { "name": "Erotic", "value": "erotic" },
   ]
 export const INTERESTS = [
     { "name": "Adventure", "value": "adventure" },

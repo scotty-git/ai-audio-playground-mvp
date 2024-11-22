@@ -13,6 +13,7 @@ interface OutlineResult {
     tone: string;
     readingPurpose: string;
     locale: string;
+    customParams: Record<string, string>;
   };
   timestamp: string;
 }
@@ -79,6 +80,18 @@ export default function OutlinesPage() {
                       <li>Tone: {outline.paramsUsed.tone}</li>
                       <li>Reading Purpose: {outline.paramsUsed.readingPurpose}</li>
                       <li>Locale: {outline.paramsUsed.locale}</li>
+                      {Object.entries(outline.paramsUsed.customParams || {}).length > 0 && (
+                        <li>
+                          Custom Parameters:
+                          <ul className="ml-4 mt-1">
+                            {Object.entries(outline.paramsUsed.customParams || {}).map(([key, value]) => (
+                              <li key={key} className="text-gray-600">
+                                {key}: {value}
+                              </li>
+                            ))}
+                          </ul>
+                        </li>
+                      )}
                     </ul>
                   </div>
                   <div>
