@@ -1,5 +1,3 @@
-
-
 export const GENRES = [
     { "name": "Action and Adventure", "value": "action_and_adventure" },
     { "name": "Biography and Memoir", "value": "biography_and_memoir" },
