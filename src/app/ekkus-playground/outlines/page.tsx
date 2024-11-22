@@ -1,39 +1,25 @@
 'use client'
 
-import { useEffect, useState } from 'react';
-
-interface OutlineResult {
-  outline: string;
-  promptUsed: string;
-  paramsUsed: {
-    age: number;
-    genre: string;
-    interests: string[];
-    likedAuthors: string[];
-    tone: string;
-    readingPurpose: string;
-    locale: string;
-    customParams: Record<string, string>;
-  };
-  timestamp: string;
-}
+import { useState, useEffect } from 'react';
+import { StoryGenerator } from '../components/story-generator';
+import type { OutlineResult, Story } from '../types';
 
 export default function OutlinesPage() {
   const [outlines, setOutlines] = useState<OutlineResult[]>([]);
   const [expandedOutlines, setExpandedOutlines] = useState<Record<number, boolean>>({});
 
   useEffect(() => {
-    const fetchOutlines = async () => {
+    const loadOutlines = async () => {
       try {
         const response = await fetch('/api/outlines');
         const data = await response.json();
         setOutlines(data);
       } catch (error) {
-        console.error('Error fetching outlines:', error);
+        console.error('Error loading outlines:', error);
       }
     };
 
-    fetchOutlines();
+    loadOutlines();
   }, []);
 
   const toggleOutline = (index: number) => {
@@ -43,69 +29,100 @@ export default function OutlinesPage() {
     }));
   };
 
+  const handleStoryUpdate = async (index: number, story: Story) => {
+    const updatedOutlines = [...outlines];
+    updatedOutlines[index] = {
+      ...updatedOutlines[index],
+      story
+    };
+    setOutlines(updatedOutlines);
+
+    try {
+      await fetch('/api/outlines', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updatedOutlines),
+      });
+    } catch (error) {
+      console.error('Error saving story:', error);
+    }
+  };
+
   if (!outlines.length) return <div>Loading...</div>;
 
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold mb-6">Generated Outlines</h1>
+    <div className="container mx-auto p-4">
+      <h1 className="text-2xl font-bold mb-4">Generated Outlines</h1>
+      
       <div className="space-y-8">
-        {outlines
-          .slice()
-          .reverse()
-          .map((outline, index) => (
-            <div key={index} className="bg-white rounded-lg shadow">
-              <button
-                onClick={() => toggleOutline(index)}
-                className="w-full p-6 text-left flex justify-between items-center hover:bg-gray-50"
-              >
-                <h2 className="text-xl font-semibold">
-                  Outline {index + 1}
-                  <span className="text-sm font-normal text-gray-500 ml-2">
-                    {new Date(outline.timestamp).toLocaleString()}
-                  </span>
-                </h2>
-                <span className="text-gray-500">
-                  {expandedOutlines[index] ? '▼' : '▶'}
+        {outlines.map((result, index) => (
+          <div key={index} className="border rounded-lg p-6 bg-white shadow-sm">
+            <button
+              onClick={() => toggleOutline(index)}
+              className="w-full p-6 text-left flex justify-between items-center hover:bg-gray-50"
+            >
+              <h2 className="text-xl font-semibold">
+                Outline {index + 1}
+                <span className="text-sm font-normal text-gray-500 ml-2">
+                  {new Date(result.timestamp).toLocaleString()}
                 </span>
-              </button>
-              {expandedOutlines[index] && (
-                <div className="p-6 pt-0 space-y-4 border-t">
-                  <div>
-                    <h3 className="font-medium text-gray-700">Parameters Used:</h3>
-                    <ul className="mt-2 space-y-1">
-                      <li>Age: {outline.paramsUsed.age}</li>
-                      <li>Genre: {outline.paramsUsed.genre}</li>
-                      <li>Interests: {outline.paramsUsed.interests.join(', ')}</li>
-                      <li>Liked Authors: {outline.paramsUsed.likedAuthors.join(', ')}</li>
-                      <li>Tone: {outline.paramsUsed.tone}</li>
-                      <li>Reading Purpose: {outline.paramsUsed.readingPurpose}</li>
-                      <li>Locale: {outline.paramsUsed.locale}</li>
-                      {Object.entries(outline.paramsUsed.customParams || {}).length > 0 && (
-                        <li>
-                          Custom Parameters:
-                          <ul className="ml-4 mt-1">
-                            {Object.entries(outline.paramsUsed.customParams || {}).map(([key, value]) => (
-                              <li key={key} className="text-gray-600">
+              </h2>
+              <span className="text-gray-500">
+                {expandedOutlines[index] ? '▼' : '▶'}
+              </span>
+            </button>
+            {expandedOutlines[index] && (
+              <div className="p-6 pt-0 space-y-4 border-t">
+                <div className="mb-4">
+                  <h2 className="text-xl font-semibold mb-2">Outline</h2>
+                  <div className="whitespace-pre-wrap bg-gray-50 p-4 rounded">
+                    {result.outline}
+                  </div>
+                </div>
+
+                <div className="mb-4">
+                  <h3 className="font-semibold mb-2">Parameters Used</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p><strong>Age:</strong> {result.paramsUsed.age}</p>
+                      <p><strong>Genre:</strong> {result.paramsUsed.genre}</p>
+                      <p><strong>Tone:</strong> {result.paramsUsed.tone}</p>
+                      <p><strong>Reading Purpose:</strong> {result.paramsUsed.readingPurpose}</p>
+                    </div>
+                    <div>
+                      <p><strong>Interests:</strong> {result.paramsUsed.interests.join(', ')}</p>
+                      <p><strong>Liked Authors:</strong> {result.paramsUsed.likedAuthors.join(', ')}</p>
+                      {result.paramsUsed.customParams && Object.keys(result.paramsUsed.customParams).length > 0 && (
+                        <div>
+                          <strong>Custom Parameters:</strong>
+                          <ul>
+                            {Object.entries(result.paramsUsed.customParams).map(([key, value]) => (
+                              <li key={key}>
                                 {key}: {value}
                               </li>
                             ))}
                           </ul>
-                        </li>
+                        </div>
                       )}
-                    </ul>
-                  </div>
-                  <div>
-                    <h3 className="font-medium text-gray-700">Prompt Used:</h3>
-                    <p className="mt-2 text-gray-600 whitespace-pre-wrap">{outline.promptUsed}</p>
-                  </div>
-                  <div>
-                    <h3 className="font-medium text-gray-700">Generated Outline:</h3>
-                    <p className="mt-2 text-gray-600 whitespace-pre-wrap">{outline.outline}</p>
+                    </div>
                   </div>
                 </div>
-              )}
-            </div>
-          ))}
+
+                <div>
+                  <h3 className="font-medium text-gray-700">Prompt Used:</h3>
+                  <p className="mt-2 text-gray-600 whitespace-pre-wrap">{result.promptUsed}</p>
+                </div>
+
+                <StoryGenerator 
+                  outline={result} 
+                  onUpdate={(story) => handleStoryUpdate(index, story)} 
+                />
+              </div>
+            )}
+          </div>
+        ))}
       </div>
     </div>
   );
