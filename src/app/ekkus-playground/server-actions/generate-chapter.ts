@@ -1,10 +1,31 @@
 'use server'
 
 import { OpenAI } from 'openai';
+import { promises as fs } from 'fs';
+import path from 'path';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
+
+const RESULTS_FILE = path.join(process.cwd(), 'src/app/ekkus-playground/results.json');
+
+async function updateResults(updater: (results: any[]) => any[]) {
+  try {
+    // Read the current results
+    const content = await fs.readFile(RESULTS_FILE, 'utf8');
+    const results = JSON.parse(content);
+
+    // Apply the update
+    const updatedResults = updater(results);
+
+    // Write back the updated results
+    await fs.writeFile(RESULTS_FILE, JSON.stringify(updatedResults, null, 2));
+  } catch (error) {
+    console.error('Error updating results:', error);
+    throw error;
+  }
+}
 
 export async function generateChapter(
   outline: string,
@@ -37,7 +58,23 @@ Write only the chapter content, without any chapter numbers or titles.
       max_tokens: 2000,
     });
 
-    return completion.choices[0].message.content || '';
+    const content = completion.choices[0].message.content || '';
+
+    // Update the results file
+    await updateResults(results => {
+      return results.map(result => {
+        if (result.story && result.story.chapters) {
+          const chapter = result.story.chapters[chapterIndex];
+          if (chapter) {
+            chapter.content = content;
+            chapter.status = 'completed';
+          }
+        }
+        return result;
+      });
+    });
+
+    return content;
   } catch (error) {
     console.error('Error generating chapter:', error);
     throw new Error('Failed to generate chapter');

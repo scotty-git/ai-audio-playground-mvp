@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { generateChapter } from '../server-actions/generate-chapter';
+import { AudioPlayer } from './audio-player';
 import type { OutlineResult, Story, Chapter } from '../types';
 
 interface StoryGeneratorProps {
@@ -21,7 +22,9 @@ export function StoryGenerator({ outline, onUpdate }: StoryGeneratorProps) {
       chapters: [],
       status: 'generating',
       currentChapter: 0,
-      totalChapters: CHAPTERS_PER_STORY
+      totalChapters: CHAPTERS_PER_STORY,
+      audioStatus: 'generating',
+      currentAudioChapter: 0
     };
     
     onUpdate(story);
@@ -31,7 +34,8 @@ export function StoryGenerator({ outline, onUpdate }: StoryGeneratorProps) {
         const chapter: Chapter = {
           content: '',
           index: i,
-          status: 'generating'
+          status: 'generating',
+          audioStatus: 'generating'
         };
         
         story.chapters[i] = chapter;
@@ -48,18 +52,63 @@ export function StoryGenerator({ outline, onUpdate }: StoryGeneratorProps) {
 
         chapter.content = content;
         chapter.status = 'completed';
-        onUpdate({ ...story });
-      }
 
-      story.status = 'completed';
-      onUpdate({ ...story });
+        // For the last chapter, update both chapter and story status together
+        if (i === CHAPTERS_PER_STORY - 1) {
+          story.status = 'completed';
+        }
+
+        // Create a new story object for each update to ensure clean state
+        const updatedStory = {
+          ...story,
+          chapters: [...story.chapters],
+          currentChapter: i,
+          status: i === CHAPTERS_PER_STORY - 1 ? 'completed' : 'generating'
+        };
+        
+        onUpdate(updatedStory);
+      }
     } catch (error) {
       console.error('Error generating story:', error);
-      story.status = 'error';
-      onUpdate({ ...story });
+      const errorStory = {
+        ...story,
+        status: 'error',
+        chapters: [...story.chapters]
+      };
+      onUpdate(errorStory);
     }
 
     setIsGenerating(false);
+  };
+
+  const handleAudioGenerated = (chapterIndex: number, audioUrl: string) => {
+    if (!outline.story) return;
+
+    // Create a new story object with a fresh chapters array
+    const updatedStory = {
+      ...outline.story,
+      chapters: outline.story.chapters.map(ch => ({ ...ch }))
+    };
+
+    const chapter = updatedStory.chapters[chapterIndex];
+    if (chapter) {
+      chapter.audioUrl = audioUrl;
+      chapter.audioStatus = 'completed';
+    }
+    
+    // Update audio generation progress
+    updatedStory.currentAudioChapter = chapterIndex;
+    
+    // Check if all chapters have audio
+    const allChaptersHaveAudio = updatedStory.chapters.every(
+      chapter => chapter.audioStatus === 'completed'
+    );
+    
+    if (allChaptersHaveAudio) {
+      updatedStory.audioStatus = 'completed';
+    }
+
+    onUpdate(updatedStory);
   };
 
   const progress = outline.story 
@@ -97,7 +146,16 @@ export function StoryGenerator({ outline, onUpdate }: StoryGeneratorProps) {
 
       {outline.story?.chapters.map((chapter, index) => (
         <div key={index} className="mt-4">
-          <h3 className="font-bold mb-2">Chapter {index + 1}</h3>
+          <div className="flex justify-between items-center mb-2">
+            <h3 className="font-bold">Chapter {index + 1}</h3>
+            {chapter.content && outline.id && (
+              <AudioPlayer
+                chapter={chapter}
+                outlineId={outline.id}
+                onAudioGenerated={handleAudioGenerated}
+              />
+            )}
+          </div>
           <div className="whitespace-pre-wrap bg-gray-50 p-4 rounded">
             {chapter.content || 'Generating...'}
           </div>
