@@ -33,27 +33,45 @@ export async function generateChapter(
   totalChapters: number,
   previousChapter?: string
 ) {
-  try {
-    const prompt = `
-You are writing chapter ${chapterIndex + 1} of ${totalChapters} for a story.
+  // The outline parameter is already the outline object
+  const outlineObj = outline;
+  const params = outlineObj.paramsUsed || {};
+  const specialInterests = params.customParams?.['special-interest-book'] || '';
+  
+  const prompt = `
+You are writing chapter ${chapterIndex + 1} of ${totalChapters} for a ${params.genre || 'story'}.
+The story should be tailored for a ${params.age}-year-old reader.
+The tone should be ${params.tone || 'neutral'}.
+The purpose is for ${params.readingPurpose || 'entertainment'}.
+The story should draw inspiration from authors like ${(params.likedAuthors || []).join(', ')}.
+Main interests to focus on: ${(params.interests || []).join(', ')}.
+${specialInterests ? `Special interest to incorporate: ${specialInterests}` : ''}
 
-Story Outline:
-${outline}
+Here is the story outline:
+${outlineObj.outline}
 
-${previousChapter ? `Previous Chapter:\n${previousChapter}\n\n` : ''}
+${previousChapter ? `Previous chapter content for context:
+${previousChapter}
 
-Write a detailed, engaging chapter that:
-1. Maintains consistency with the outline
-2. Flows naturally from the previous chapter (if provided)
-3. Uses vivid descriptions and engaging dialogue
-4. Ends in a way that leads smoothly into the next chapter (unless it's the final chapter)
+Please continue the story naturally from this point.` : 'This is the first chapter. Please begin the story.'}
 
-Write only the chapter content, without any chapter numbers or titles.
+Write an engaging and cohesive chapter that maintains consistency with the outline and previous content.
+The chapter should be approximately 1000-1500 words.
 `;
 
+  try {
     const completion = await openai.chat.completions.create({
-      messages: [{ role: "user", content: prompt }],
-      model: "gpt-3.5-turbo",
+      model: "gpt-4",
+      messages: [
+        {
+          role: "system",
+          content: "You are a professional writer crafting a chapter for a story."
+        },
+        {
+          role: "user",
+          content: prompt
+        }
+      ],
       temperature: 0.7,
       max_tokens: 2000,
     });

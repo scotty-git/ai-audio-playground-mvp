@@ -28,6 +28,38 @@ async function updateResults(updater: (results: any[]) => any[]) {
   }
 }
 
+// Function to split text into chunks that respect sentence boundaries
+function splitTextIntoChunks(text: string, maxChunkSize: number = 4000): string[] {
+  const chunks: string[] = [];
+  let currentChunk = '';
+
+  // Split into sentences (roughly) by looking for period + space or newline
+  const sentences = text.split(/(?<=\.|\?|\!)\s+/);
+
+  for (const sentence of sentences) {
+    // If adding this sentence would exceed the chunk size, start a new chunk
+    if ((currentChunk + sentence).length > maxChunkSize && currentChunk) {
+      chunks.push(currentChunk.trim());
+      currentChunk = '';
+    }
+    currentChunk += sentence + ' ';
+  }
+
+  // Add the last chunk if there's anything left
+  if (currentChunk) {
+    chunks.push(currentChunk.trim());
+  }
+
+  return chunks;
+}
+
+// Function to merge audio buffers
+async function mergeAudioBuffers(buffers: Buffer[]): Promise<Buffer> {
+  // For MP3 files, we need to concatenate them properly
+  // This is a simple concatenation - for production, you might want to use a proper audio processing library
+  return Buffer.concat(buffers);
+}
+
 export async function generateChapterAudio(
   content: string,
   chapterIndex: number,
@@ -48,18 +80,29 @@ export async function generateChapterAudio(
     fs.mkdirSync(audioBaseDir, { recursive: true });
     fs.mkdirSync(outlineDir, { recursive: true });
 
-    // Generate audio file
-    const response = await openai.audio.speech.create({
-      model: 'tts-1',
-      voice: 'alloy',
-      input: content,
-    });
+    // Split content into chunks
+    const chunks = splitTextIntoChunks(content);
+    const audioBuffers: Buffer[] = [];
 
-    // Save audio file
-    const buffer = Buffer.from(await response.arrayBuffer());
+    // Generate audio for each chunk
+    for (const chunk of chunks) {
+      const response = await openai.audio.speech.create({
+        model: 'tts-1',
+        voice: 'alloy',
+        input: chunk,
+      });
+
+      const buffer = Buffer.from(await response.arrayBuffer());
+      audioBuffers.push(buffer);
+    }
+
+    // Merge audio buffers
+    const finalBuffer = await mergeAudioBuffers(audioBuffers);
+
+    // Save the final audio file
     const fileName = `chapter-${chapterIndex}.mp3`;
     const filePath = path.join(outlineDir, fileName);
-    fs.writeFileSync(filePath, buffer);
+    fs.writeFileSync(filePath, finalBuffer);
 
     // Generate the URL for the audio file
     const audioUrl = `/audio/${outlineId}/${fileName}`;
@@ -94,6 +137,20 @@ export async function generateChapterAudio(
     };
   } catch (error) {
     console.error('Error generating audio:', error);
+    
+    // Update the status to error in case of failure
+    await updateResults(results => {
+      return results.map(result => {
+        if (result.id === outlineId && result.story && result.story.chapters) {
+          const chapter = result.story.chapters[chapterIndex];
+          if (chapter) {
+            chapter.audioStatus = 'error';
+          }
+        }
+        return result;
+      });
+    });
+    
     throw error;
   }
 }
